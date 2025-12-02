@@ -1,4 +1,4 @@
-# 🕵️‍♂️ Crime Detection in Surveillance Videos  
+# Crime Detection in Surveillance Videos  
 ### Frame-Based Deep Learning Classification using VGG16, ResNet50, and MobileNetV2
 
 This project implements a deep learning–based pipeline for classifying crime-related activities in CCTV surveillance footage.  
@@ -15,4 +15,4 @@ The goal is to evaluate different pretrained CNN architectures and compare their
 
 ---
 
-## 📁 Project Structure
+## Project Structure
