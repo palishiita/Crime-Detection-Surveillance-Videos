@@ -1,0 +1,24 @@
+name: crime-detection
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.10
+
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cpuonly
+
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - opencv
+
+  - pip
+  - pip:
+      - tqdm
+      - seaborn
