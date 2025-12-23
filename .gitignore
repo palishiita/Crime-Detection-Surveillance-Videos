@@ -1,21 +1,36 @@
+
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
 
-# VS Code
-.vscode/
 
-# Conda / envs
+# Virtual Environments
+venv/
 .env/
+.env*/
 *.conda
+
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.iml
+
 
 # Data (large files)
 dataset/
 
-# Model weights
+
+# Model Weights
 *.pt
 *.pth
 
-# OS files
+
+# OS / System Files
 .DS_Store
 Thumbs.db
+
+
+# Logs
+*.log
