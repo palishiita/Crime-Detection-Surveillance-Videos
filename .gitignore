@@ -11,9 +11,6 @@ __pycache__/
 
 # Data (large files)
 dataset/
-data/
-data_frames/
-data_raw/
 
 # Model weights
 *.pt
