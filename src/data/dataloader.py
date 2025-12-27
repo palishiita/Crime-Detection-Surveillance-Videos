@@ -209,6 +209,7 @@ def build_dataloaders(
         num_workers=cfg.num_workers,
         pin_memory=cfg.pin_memory,
         drop_last=False,
+        collate_fn=collate_with_meta if cfg.return_meta else None,
     )
 
     val_loader = DataLoader(
@@ -218,6 +219,7 @@ def build_dataloaders(
         num_workers=cfg.num_workers,
         pin_memory=cfg.pin_memory,
         drop_last=False,
+        collate_fn=collate_with_meta if cfg.return_meta else None,
     )
 
     test_loader = DataLoader(
@@ -227,6 +229,7 @@ def build_dataloaders(
         num_workers=cfg.num_workers,
         pin_memory=cfg.pin_memory,
         drop_last=False,
+        collate_fn=collate_with_meta if cfg.return_meta else None,
     )
 
     # Artifacts (computed from TRAIN subset, not full train)
@@ -269,3 +272,22 @@ def sanity_check(cfg: Optional[DataConfig] = None, num_batches: int = 1) -> None
         x, y = batch[0], batch[1]
         print(f"Val batch {i}: x={tuple(x.shape)}, y={tuple(y.shape)}")
         break
+
+def collate_with_meta(batch):
+    """
+    Batch format from dataset:
+      (img, label) or (img, label, meta)
+
+    We want:
+      imgs: Tensor [B,C,H,W]
+      labels: Tensor [B]
+      metas: list[SampleMeta]  (keep as python list)
+    """
+    imgs = torch.stack([b[0] for b in batch], dim=0)
+    labels = torch.tensor([b[1] for b in batch], dtype=torch.long)
+
+    if len(batch[0]) >= 3:
+        metas = [b[2] for b in batch]
+        return imgs, labels, metas
+
+    return imgs, labels

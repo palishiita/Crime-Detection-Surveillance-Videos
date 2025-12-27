@@ -1,0 +1,108 @@
+{
+  "checkpoint": "experiments/mobilenetv2/debug_run/checkpoints/best_bal_acc.pt",
+  "model_name": "mobilenetv2",
+  "epoch": 1,
+  "tag": "best_balanced_accuracy",
+  "best_score_in_ckpt": 0.0,
+  "temporal_aggregation": {
+    "method": "mean_probs",
+    "smoothing": "none",
+    "smoothing_alpha": 0.7
+  },
+  "frame_level": {
+    "accuracy": 0.10333333333333333,
+    "balanced_accuracy": 0.10333333333333333,
+    "macro_precision": 0.1317088269039208,
+    "macro_recall": 0.10333333333333333,
+    "macro_f1": 0.09687715238173954,
+    "weighted_precision": 0.1317088269039208,
+    "weighted_recall": 0.10333333333333333,
+    "weighted_f1": 0.09687715238173954,
+    "per_class": {
+      "Abuse": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 50.0
+      },
+      "Assault": {
+        "precision": 0.1016949152542373,
+        "recall": 0.12,
+        "f1": 0.11009174311926606,
+        "support": 50.0
+      },
+      "Fighting": {
+        "precision": 0.4,
+        "recall": 0.08,
+        "f1": 0.13333333333333333,
+        "support": 50.0
+      },
+      "Normal_Videos": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 50.0
+      },
+      "Robbery": {
+        "precision": 0.19672131147540983,
+        "recall": 0.24,
+        "f1": 0.21621621621621623,
+        "support": 50.0
+      },
+      "Shooting": {
+        "precision": 0.09183673469387756,
+        "recall": 0.18,
+        "f1": 0.12162162162162163,
+        "support": 50.0
+      }
+    }
+  },
+  "video_level": {
+    "accuracy": 0.0,
+    "balanced_accuracy": 0.0,
+    "macro_precision": 0.0,
+    "macro_recall": 0.0,
+    "macro_f1": 0.0,
+    "weighted_precision": 0.0,
+    "weighted_recall": 0.0,
+    "weighted_f1": 0.0,
+    "per_class": {
+      "Abuse": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 1.0
+      },
+      "Assault": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 0.0
+      },
+      "Fighting": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 0.0
+      },
+      "Normal_Videos": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 30.0
+      },
+      "Robbery": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 0.0
+      },
+      "Shooting": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 0.0
+      }
+    }
+  }
+}

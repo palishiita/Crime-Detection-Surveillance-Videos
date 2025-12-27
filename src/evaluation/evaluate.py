@@ -5,7 +5,7 @@ import csv
 import json
 import os
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -134,6 +134,7 @@ def evaluate(
     agg_method: str = "mean_probs",
     smoothing: str = "none",
     smoothing_alpha: float = 0.7,
+    max_per_class_test: Optional[int] = None,
 ) -> Dict:
     device = torch.device(device_str if (device_str == "cpu" or torch.cuda.is_available()) else "cpu")
 
@@ -146,7 +147,7 @@ def evaluate(
         weighted_sampling=False,
         return_meta=True,
         max_per_class_train=None,
-        max_per_class_test=None,
+        max_per_class_test=max_per_class_test,
     )
     _, _, test_loader, _ = build_dataloaders(data_cfg)
 

@@ -1,0 +1,7 @@
+class,precision,recall,f1,support
+Abuse,0.0,0.0,0.0,1.0
+Assault,0.0,0.0,0.0,0.0
+Fighting,0.0,0.0,0.0,0.0
+Normal_Videos,0.0,0.0,0.0,30.0
+Robbery,0.0,0.0,0.0,0.0
+Shooting,0.0,0.0,0.0,0.0

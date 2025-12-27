@@ -21,6 +21,16 @@ def parse_args() -> argparse.Namespace:
     eval_p.add_argument("--model", type=str, default="resnet50",
                         choices=["resnet50", "mobilenetv2", "vgg16"])
     eval_p.add_argument("--device", type=str, default="cpu")
+
+    eval_p.add_argument("--root_dir", type=str, default="dataset")
+    eval_p.add_argument("--out_dir", type=str, default="results")
+    eval_p.add_argument("--batch_size", type=int, default=32)
+    eval_p.add_argument("--num_workers", type=int, default=0)
+    eval_p.add_argument("--img_size", type=int, default=224)
+    eval_p.add_argument("--dropout", type=float, default=0.4)
+
+    eval_p.add_argument("--max_per_class_test", type=int, default=None)
+
     eval_p.add_argument("--agg_method", type=str, default="mean_probs")
     eval_p.add_argument("--smoothing", type=str, default="none")
     eval_p.add_argument("--smoothing_alpha", type=float, default=0.7)
@@ -62,10 +72,17 @@ def main():
         outputs = evaluate(
             ckpt_path=args.ckpt,
             model_name=args.model,
+            root_dir=args.root_dir,
+            out_dir=args.out_dir,
             device_str=args.device,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            img_size=args.img_size,
+            dropout=args.dropout,
             agg_method=args.agg_method,
             smoothing=args.smoothing,
             smoothing_alpha=args.smoothing_alpha,
+            max_per_class_test=args.max_per_class_test,
         )
         print("\nEvaluation outputs:", outputs)
 
