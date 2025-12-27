@@ -13,6 +13,20 @@ Instead of full video analysis, the system operates on **individual frames**, ex
 
 The goal is to evaluate different pretrained CNN architectures and compare their performance on frame-level crime classification.
 
----
 
-## Project Structure
+## Commands
+
+Debug Training Mode:
+```bash
+python -m src.main train --mode debug
+```
+
+Final Training Mode:
+```bash
+python -m src.main train --mode final
+```
+
+Evaluation Mode:
+```bash
+python -m src.main evaluate --ckpt experiments/resnet50/final_resnet50/checkpoints/best_bal_acc.pt --model resnet50 --agg_method mean_probs --smoothing ema_probs
+```

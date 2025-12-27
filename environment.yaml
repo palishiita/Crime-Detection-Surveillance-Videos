@@ -12,7 +12,7 @@ dependencies:
   - torchaudio
   - cpuonly
 
-  - numpy
+  - numpy<2
   - pandas
   - scikit-learn
   - matplotlib
