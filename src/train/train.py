@@ -21,7 +21,8 @@ from src.train.validate import validate
 @dataclass
 class TrainConfig:
     # data
-    data: DataConfig = DataConfig()
+    from dataclasses import field
+    data: DataConfig = field(default_factory=DataConfig)
 
     # model
     model_name: str = "resnet50"   # "resnet50" | "mobilenetv2" | "vgg16"
@@ -163,7 +164,7 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
     # Optimizer + scheduler (monitor balanced accuracy)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="max", factor=0.5, patience=2, verbose=True
+        optimizer, mode="max", factor=0.5, patience=2
     )
 
     # Output dirs

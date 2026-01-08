@@ -49,7 +49,8 @@ def build_vgg16(num_classes: int = 6, dropout: float = 0.5, freeze_backbone: boo
     if freeze_backbone:
         _freeze(model)
 
-    in_features = model.classifier[6].in_features
+    in_features = model.classifier[0].in_features
+
     model.classifier = nn.Sequential(
         nn.Linear(in_features, 512),
         nn.ReLU(True),

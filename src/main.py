@@ -45,24 +45,24 @@ def main():
     if args.command == "train":
         cfg = TrainConfig()
         cfg.data.num_workers = 0
-        cfg.device = "cpu"
+        cfg.device = "cuda"
 
         if args.mode == "debug":
-            cfg.data.max_per_class_train = 200
-            cfg.data.max_per_class_test = 50
+            cfg.data.max_per_class_train = 100
+            cfg.data.max_per_class_test = 10
             cfg.data.weighted_sampling = False
             cfg.epochs = 3
             cfg.model_name = "mobilenetv2"
             cfg.experiment_name = "debug_run"
 
         elif args.mode == "final":
-            cfg.data.max_per_class_train = None
-            cfg.data.max_per_class_test = None
-            cfg.data.weighted_sampling = True
+            cfg.data.max_per_class_train = 7000
+            cfg.data.max_per_class_test = 1500
+            cfg.data.weighted_sampling = False
             cfg.epochs = 25
-            cfg.model_name = "resnet50"
+            cfg.model_name = "mobilenetv2"
             cfg.freeze_backbone = False
-            cfg.experiment_name = "final_resnet50"
+            cfg.experiment_name = "final_mobilenetv2"
 
         out = train(cfg)
         print("\nTraining done:", out)
