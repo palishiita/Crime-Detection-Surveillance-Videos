@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from collections import defaultdict
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -147,6 +148,85 @@ def _split_train_indices_frame_wise(
     train_idx = all_idx[n_val:].tolist()
     return train_idx, val_idx
 
+def _split_train_indices_video_wise_stratified(
+    train_full_ds,
+    val_split: float,
+    seed: int = 42,
+) -> Tuple[List[int], List[int]]:
+    rng = np.random.RandomState(seed)
+
+    # label -> video_id -> list of indices
+    by_label_video = defaultdict(lambda: defaultdict(list))
+
+    # samples expected: (path, label, video_id, frame_id)
+    for idx, sample in enumerate(train_full_ds.samples):
+        label = int(sample[1])
+        video_id = str(sample[2])
+        by_label_video[label][video_id].append(idx)
+
+    train_idx: List[int] = []
+    val_idx: List[int] = []
+
+    for label, video_map in by_label_video.items():
+        videos = list(video_map.keys())
+        rng.shuffle(videos)
+
+        if len(videos) <= 1:
+            val_videos = set()
+        else:
+            n_val = int(round(len(videos) * val_split))
+            n_val = max(1, min(n_val, len(videos) - 1))
+            val_videos = set(videos[:n_val])
+
+        for vid, idxs in video_map.items():
+            if vid in val_videos:
+                val_idx.extend(idxs)
+            else:
+                train_idx.extend(idxs)
+
+    rng.shuffle(train_idx)
+    rng.shuffle(val_idx)
+    return train_idx, val_idx
+
+
+def stratified_video_wise_split(samples, val_split: float, seed: int = 42):
+    """
+    samples: list of tuples stored in dataset.samples
+             expected format: (path, label, video_id, frame_id) OR similar
+    Returns: train_indices, val_indices
+    """
+    rng = np.random.RandomState(seed)
+
+    # class -> video_id -> list of indices
+    class_to_video_to_indices = defaultdict(lambda: defaultdict(list))
+
+    for idx, s in enumerate(samples):
+        # match your dataset.samples structure
+        # common: (path, label, video_id, frame_id)
+        label = int(s[1])
+        video_id = str(s[2])
+        class_to_video_to_indices[label][video_id].append(idx)
+
+    train_idx = []
+    val_idx = []
+
+    for label, video_map in class_to_video_to_indices.items():
+        videos = list(video_map.keys())
+        rng.shuffle(videos)
+
+        n_val_videos = max(1, int(round(len(videos) * val_split))) if len(videos) > 1 else 0
+        val_videos = set(videos[:n_val_videos])
+
+        for vid, idxs in video_map.items():
+            if vid in val_videos:
+                val_idx.extend(idxs)
+            else:
+                train_idx.extend(idxs)
+
+    rng.shuffle(train_idx)
+    rng.shuffle(val_idx)
+
+    return train_idx, val_idx
 
 def build_dataloaders(
     cfg: Optional[DataConfig] = None
@@ -184,18 +264,23 @@ def build_dataloaders(
     )
 
     # Split train -> train/val
-    if cfg.video_wise_split:
-        train_idx, val_idx = _split_train_indices_video_wise(train_full_ds, cfg.val_split, cfg.seed)
+    if cfg.val_split is None or cfg.val_split <= 0.0:
+        train_idx = list(range(len(train_full_ds)))
+        val_idx = []
     else:
-        train_idx, val_idx = _split_train_indices_frame_wise(train_full_ds, cfg.val_split, cfg.seed)
+        if cfg.video_wise_split:
+            # NEW: stratified video-wise split (fixes your val=only Normal issue)
+            train_idx, val_idx = _split_train_indices_video_wise_stratified(train_full_ds, cfg.val_split, cfg.seed)
+        else:
+            train_idx, val_idx = _split_train_indices_frame_wise(train_full_ds, cfg.val_split, cfg.seed)
 
     train_ds = Subset(train_full_ds, train_idx)
-    val_ds = Subset(train_full_ds, val_idx)
+    val_ds = Subset(train_full_ds, val_idx) if len(val_idx) > 0 else Subset(train_full_ds, [])
 
     # Train sampler (train only)
     sampler = None
     shuffle = True
-    if cfg.weighted_sampling:
+    if cfg.weighted_sampling and len(train_idx) > 0:
         # labels for the train subset
         train_labels = [train_full_ds.samples[i][1] for i in train_idx]
         sampler = _make_weighted_sampler(train_labels, num_classes=len(train_full_ds.classes), seed=cfg.seed)

@@ -27,24 +27,36 @@ class SampleMeta:
 
 def _parse_video_and_frame(filename: str) -> Tuple[str, int]:
     """
-    Parse video_id and frame_id from filenames like:
-      Normal_Videos_003_x264_0.png
+    Parse video_id and frame_id from filenames.
+
+    Supported examples:
+      1) Normal_Videos_003_x264_0.png   -> video_id="003", frame_id=0
+      2) Abuse042_x264_13850.png        -> video_id="Abuse042", frame_id=13850
+         (same idea for Assault123_x264_55.png, etc.)
 
     Returns:
-      video_id (string, keeps leading zeros)
+      video_id (string)
       frame_id (int)
     """
     stem = Path(filename).stem  # remove extension
 
-    # Common pattern: <anything>_<video>_x264_<frame>
+    # Case A: class folder already provides the class, filename uses: <Class><video>_x264_<frame>
+    # Example: Abuse042_x264_13850  -> video_id="Abuse042", frame_id=13850
+    m = re.search(r"^([A-Za-z]+[0-9]+)_x264_(\d+)$", stem)
+    if m:
+        return m.group(1), int(m.group(2))
+
+    # Case B: filename includes explicit video number group: ..._<video>_x264_<frame>
+    # Example: Normal_Videos_003_x264_0  -> video_id="003", frame_id=0
     m = re.search(r"_(\d+)_x264_(\d+)$", stem)
     if m:
         return m.group(1), int(m.group(2))
 
-    # Fallback: take last two numeric groups in the filename
-    nums = re.findall(r"\d+", stem)
-    if len(nums) >= 2:
-        return nums[-2], int(nums[-1])
+    # Case C: fallback: last numeric token is frame_id; video_id is everything before "_x264_"
+    # Example: Something_weird_x264_123 -> video_id="Something_weird", frame_id=123
+    m = re.search(r"^(.*)_x264_(\d+)$", stem)
+    if m:
+        return m.group(1), int(m.group(2))
 
     raise ValueError(f"Could not parse video_id/frame_id from filename: {filename}")
 
