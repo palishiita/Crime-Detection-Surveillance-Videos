@@ -32,13 +32,13 @@ class DataConfig:
     return_meta: bool = False
     seed: int = 42
 
-    # debug caps (optional)
+    # debug caps (optional) - caps frames per class
     max_per_class_train: Optional[int] = None
     max_per_class_test: Optional[int] = None
 
-    # NEW: validation split from train
-    val_split: float = 0.1          # 10% of train videos go to validation
-    video_wise_split: bool = True   # keep frames of same video together
+    # validation split from train
+    val_split: float = 0.1
+    video_wise_split: bool = True  # if False -> frame-wise split
 
 
 def build_transforms(img_size: int = 224) -> Tuple[transforms.Compose, transforms.Compose]:
@@ -56,6 +56,27 @@ def build_transforms(img_size: int = 224) -> Tuple[transforms.Compose, transform
     ])
 
     return train_tfms, test_tfms
+
+
+def collate_with_meta(batch):
+    """
+    Dataset item format:
+      - (img, label)
+      - or (img, label, meta)
+
+    Returns:
+      - imgs: Tensor [B,C,H,W]
+      - labels: Tensor [B]
+      - metas: list (kept as python list, not collated into tensors)
+    """
+    imgs = torch.stack([b[0] for b in batch], dim=0)
+    labels = torch.tensor([b[1] for b in batch], dtype=torch.long)
+
+    if len(batch[0]) >= 3:
+        metas = [b[2] for b in batch]
+        return imgs, labels, metas
+
+    return imgs, labels
 
 
 def _make_weighted_sampler(labels: List[int], num_classes: int, seed: int = 42) -> WeightedRandomSampler:
@@ -90,46 +111,6 @@ def _counts_by_class_from_labels(labels: List[int], classes: List[str]) -> Dict[
     return {classes[i]: int(counts[i]) for i in range(num_classes)}
 
 
-def _split_train_indices_video_wise(
-    train_ds: CrimeFramesDataset,
-    val_split: float,
-    seed: int,
-) -> Tuple[List[int], List[int]]:
-    """
-    Video-wise split using a composite key (class_name, video_id) so that:
-    - frames from the same video stay together
-    - videos from different classes do not collide on video_id
-    """
-    if not (0.0 < val_split < 1.0):
-        raise ValueError(f"val_split must be in (0,1). Got: {val_split}")
-
-    rng = np.random.default_rng(seed)
-
-    # Group indices by (class_name, video_id)
-    groups: Dict[Tuple[str, str], List[int]] = {}
-    for idx, (_, label, video_id, _) in enumerate(train_ds.samples):
-        class_name = train_ds.classes[label]
-        key = (class_name, str(video_id))
-        groups.setdefault(key, []).append(idx)
-
-    keys = list(groups.keys())
-    rng.shuffle(keys)
-
-    n_val_groups = int(round(len(keys) * val_split))
-    n_val_groups = max(1, n_val_groups)  # ensure non-empty val
-    val_keys = set(keys[:n_val_groups])
-
-    train_indices: List[int] = []
-    val_indices: List[int] = []
-    for k, idxs in groups.items():
-        if k in val_keys:
-            val_indices.extend(idxs)
-        else:
-            train_indices.extend(idxs)
-
-    return train_indices, val_indices
-
-
 def _split_train_indices_frame_wise(
     train_ds: CrimeFramesDataset,
     val_split: float,
@@ -144,22 +125,33 @@ def _split_train_indices_frame_wise(
 
     n_val = int(round(len(all_idx) * val_split))
     n_val = max(1, n_val)
+
     val_idx = all_idx[:n_val].tolist()
     train_idx = all_idx[n_val:].tolist()
     return train_idx, val_idx
 
+
 def _split_train_indices_video_wise_stratified(
-    train_full_ds,
+    train_ds: CrimeFramesDataset,
     val_split: float,
-    seed: int = 42,
+    seed: int,
 ) -> Tuple[List[int], List[int]]:
+    """
+    Stratified video-wise split:
+      - Keep all frames of a video together
+      - Approximate class stratification by splitting videos within each class
+
+    Assumes train_ds.samples items are:
+      (path, label, video_id, frame_id)
+    """
+    if not (0.0 < val_split < 1.0):
+        raise ValueError(f"val_split must be in (0,1). Got: {val_split}")
+
     rng = np.random.RandomState(seed)
 
     # label -> video_id -> list of indices
     by_label_video = defaultdict(lambda: defaultdict(list))
-
-    # samples expected: (path, label, video_id, frame_id)
-    for idx, sample in enumerate(train_full_ds.samples):
+    for idx, sample in enumerate(train_ds.samples):
         label = int(sample[1])
         video_id = str(sample[2])
         by_label_video[label][video_id].append(idx)
@@ -171,6 +163,7 @@ def _split_train_indices_video_wise_stratified(
         videos = list(video_map.keys())
         rng.shuffle(videos)
 
+        # ensure at least 1 video stays in train if possible
         if len(videos) <= 1:
             val_videos = set()
         else:
@@ -188,45 +181,6 @@ def _split_train_indices_video_wise_stratified(
     rng.shuffle(val_idx)
     return train_idx, val_idx
 
-
-def stratified_video_wise_split(samples, val_split: float, seed: int = 42):
-    """
-    samples: list of tuples stored in dataset.samples
-             expected format: (path, label, video_id, frame_id) OR similar
-    Returns: train_indices, val_indices
-    """
-    rng = np.random.RandomState(seed)
-
-    # class -> video_id -> list of indices
-    class_to_video_to_indices = defaultdict(lambda: defaultdict(list))
-
-    for idx, s in enumerate(samples):
-        # match your dataset.samples structure
-        # common: (path, label, video_id, frame_id)
-        label = int(s[1])
-        video_id = str(s[2])
-        class_to_video_to_indices[label][video_id].append(idx)
-
-    train_idx = []
-    val_idx = []
-
-    for label, video_map in class_to_video_to_indices.items():
-        videos = list(video_map.keys())
-        rng.shuffle(videos)
-
-        n_val_videos = max(1, int(round(len(videos) * val_split))) if len(videos) > 1 else 0
-        val_videos = set(videos[:n_val_videos])
-
-        for vid, idxs in video_map.items():
-            if vid in val_videos:
-                val_idx.extend(idxs)
-            else:
-                train_idx.extend(idxs)
-
-    rng.shuffle(train_idx)
-    rng.shuffle(val_idx)
-
-    return train_idx, val_idx
 
 def build_dataloaders(
     cfg: Optional[DataConfig] = None
@@ -266,25 +220,26 @@ def build_dataloaders(
     # Split train -> train/val
     if cfg.val_split is None or cfg.val_split <= 0.0:
         train_idx = list(range(len(train_full_ds)))
-        val_idx = []
+        val_idx: List[int] = []
     else:
         if cfg.video_wise_split:
-            # NEW: stratified video-wise split (fixes your val=only Normal issue)
             train_idx, val_idx = _split_train_indices_video_wise_stratified(train_full_ds, cfg.val_split, cfg.seed)
         else:
             train_idx, val_idx = _split_train_indices_frame_wise(train_full_ds, cfg.val_split, cfg.seed)
 
     train_ds = Subset(train_full_ds, train_idx)
-    val_ds = Subset(train_full_ds, val_idx) if len(val_idx) > 0 else Subset(train_full_ds, [])
+    val_ds = Subset(train_full_ds, val_idx)
 
     # Train sampler (train only)
     sampler = None
     shuffle = True
     if cfg.weighted_sampling and len(train_idx) > 0:
-        # labels for the train subset
-        train_labels = [train_full_ds.samples[i][1] for i in train_idx]
+        train_labels = [int(train_full_ds.samples[i][1]) for i in train_idx]
         sampler = _make_weighted_sampler(train_labels, num_classes=len(train_full_ds.classes), seed=cfg.seed)
         shuffle = False
+
+    # collate function when meta is enabled
+    collate = collate_with_meta if cfg.return_meta else None
 
     train_loader = DataLoader(
         train_ds,
@@ -294,7 +249,7 @@ def build_dataloaders(
         num_workers=cfg.num_workers,
         pin_memory=cfg.pin_memory,
         drop_last=False,
-        collate_fn=collate_with_meta if cfg.return_meta else None,
+        collate_fn=collate,
     )
 
     val_loader = DataLoader(
@@ -304,7 +259,7 @@ def build_dataloaders(
         num_workers=cfg.num_workers,
         pin_memory=cfg.pin_memory,
         drop_last=False,
-        collate_fn=collate_with_meta if cfg.return_meta else None,
+        collate_fn=collate,
     )
 
     test_loader = DataLoader(
@@ -314,13 +269,13 @@ def build_dataloaders(
         num_workers=cfg.num_workers,
         pin_memory=cfg.pin_memory,
         drop_last=False,
-        collate_fn=collate_with_meta if cfg.return_meta else None,
+        collate_fn=collate,
     )
 
-    # Artifacts (computed from TRAIN subset, not full train)
-    train_labels = [train_full_ds.samples[i][1] for i in train_idx]
-    val_labels = [train_full_ds.samples[i][1] for i in val_idx]
-    test_labels = [lbl for (_, lbl, _, _) in test_ds.samples]
+    # Artifacts
+    train_labels = [int(train_full_ds.samples[i][1]) for i in train_idx]
+    val_labels = [int(train_full_ds.samples[i][1]) for i in val_idx]
+    test_labels = [int(lbl) for (_, lbl, _, _) in test_ds.samples]
 
     artifacts: Dict = {}
     artifacts["classes"] = train_full_ds.classes
@@ -328,11 +283,7 @@ def build_dataloaders(
     artifacts["train_counts"] = _counts_by_class_from_labels(train_labels, train_full_ds.classes)
     artifacts["val_counts"] = _counts_by_class_from_labels(val_labels, train_full_ds.classes)
     artifacts["test_counts"] = _counts_by_class_from_labels(test_labels, train_full_ds.classes)
-    artifacts["split_sizes"] = {
-        "train": len(train_idx),
-        "val": len(val_idx),
-        "test": len(test_ds),
-    }
+    artifacts["split_sizes"] = {"train": len(train_idx), "val": len(val_idx), "test": len(test_ds)}
 
     return train_loader, val_loader, test_loader, artifacts
 
@@ -357,22 +308,3 @@ def sanity_check(cfg: Optional[DataConfig] = None, num_batches: int = 1) -> None
         x, y = batch[0], batch[1]
         print(f"Val batch {i}: x={tuple(x.shape)}, y={tuple(y.shape)}")
         break
-
-def collate_with_meta(batch):
-    """
-    Batch format from dataset:
-      (img, label) or (img, label, meta)
-
-    We want:
-      imgs: Tensor [B,C,H,W]
-      labels: Tensor [B]
-      metas: list[SampleMeta]  (keep as python list)
-    """
-    imgs = torch.stack([b[0] for b in batch], dim=0)
-    labels = torch.tensor([b[1] for b in batch], dtype=torch.long)
-
-    if len(batch[0]) >= 3:
-        metas = [b[2] for b in batch]
-        return imgs, labels, metas
-
-    return imgs, labels
