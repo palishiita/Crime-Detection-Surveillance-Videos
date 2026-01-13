@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import torch
 
 from src.train.train import TrainConfig, train
 from src.evaluation.evaluate import evaluate
@@ -8,29 +9,22 @@ from src.evaluation.evaluate import evaluate
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Crime Detection Pipeline")
-
     subparsers = p.add_subparsers(dest="command", required=True)
 
-    # train
     train_p = subparsers.add_parser("train", help="Train a model")
     train_p.add_argument("--mode", type=str, default="debug", choices=["debug", "final"])
 
-    # evaluate
     eval_p = subparsers.add_parser("evaluate", help="Evaluate a trained model")
     eval_p.add_argument("--ckpt", type=str, required=True)
-    eval_p.add_argument("--model", type=str, default="resnet50",
-                        choices=["resnet50", "mobilenetv2", "vgg16"])
+    eval_p.add_argument("--model", type=str, default="resnet50", choices=["resnet50", "mobilenetv2", "vgg16"])
     eval_p.add_argument("--device", type=str, default="cpu")
-
     eval_p.add_argument("--root_dir", type=str, default="dataset")
     eval_p.add_argument("--out_dir", type=str, default="results")
     eval_p.add_argument("--batch_size", type=int, default=32)
     eval_p.add_argument("--num_workers", type=int, default=0)
     eval_p.add_argument("--img_size", type=int, default=224)
     eval_p.add_argument("--dropout", type=float, default=0.4)
-
     eval_p.add_argument("--max_per_class_test", type=int, default=None)
-
     eval_p.add_argument("--agg_method", type=str, default="mean_probs")
     eval_p.add_argument("--smoothing", type=str, default="none")
     eval_p.add_argument("--smoothing_alpha", type=float, default=0.7)
@@ -41,11 +35,14 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
 
-    # train
     if args.command == "train":
         cfg = TrainConfig()
         cfg.data.num_workers = 0
-        cfg.device = "cuda"
+        cfg.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        cfg.data.return_meta = True
+        cfg.data.val_split = 0.1
+        cfg.data.video_wise_split = True
 
         if args.mode == "debug":
             cfg.data.max_per_class_train = 100
@@ -67,7 +64,6 @@ def main():
         out = train(cfg)
         print("\nTraining done:", out)
 
-    # evaluate
     elif args.command == "evaluate":
         outputs = evaluate(
             ckpt_path=args.ckpt,

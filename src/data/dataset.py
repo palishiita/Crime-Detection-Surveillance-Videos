@@ -148,7 +148,8 @@ class CrimeFramesDataset(Dataset):
 
             label = self.class_to_idx[class_name]
             for p in files:
-                video_id, frame_id = _parse_video_and_frame(p.name)
+                video_id_raw, frame_id = _parse_video_and_frame(p.name)
+                video_id = f"{class_name}:{video_id_raw}"
                 self.samples.append((p, label, video_id, frame_id))
 
         if len(self.samples) == 0:
