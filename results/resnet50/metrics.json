@@ -1,0 +1,108 @@
+{
+  "checkpoint": "experiments/resnet50/final_resnet50/checkpoints/best_bal_acc.pt",
+  "model_name": "resnet50",
+  "epoch": 1,
+  "tag": "best_balanced_accuracy",
+  "best_score_in_ckpt": 0.0,
+  "temporal_aggregation": {
+    "method": "mean_probs",
+    "smoothing": "ema_probs",
+    "smoothing_alpha": 0.7
+  },
+  "frame_level": {
+    "accuracy": 0.038375299605680264,
+    "balanced_accuracy": 0.19108780427335337,
+    "macro_precision": 0.05719462723494937,
+    "macro_recall": 0.19108780427335337,
+    "macro_f1": 0.0717256535263311,
+    "weighted_precision": 0.02108049731270806,
+    "weighted_recall": 0.038375299605680264,
+    "weighted_f1": 0.025350770550725335,
+    "per_class": {
+      "Abuse": {
+        "precision": 0.0004360148245040331,
+        "recall": 0.006734006734006734,
+        "f1": 0.000819000819000819,
+        "support": 297.0
+      },
+      "Assault": {
+        "precision": 0.016683518705763397,
+        "recall": 0.0621001129092962,
+        "f1": 0.02630110783454212,
+        "support": 2657.0
+      },
+      "Fighting": {
+        "precision": 0.12967345007098913,
+        "recall": 0.22258326563769293,
+        "f1": 0.1638755980861244,
+        "support": 1231.0
+      },
+      "Normal_Videos": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 64952.0
+      },
+      "Robbery": {
+        "precision": 0.009791970584121021,
+        "recall": 0.5868263473053892,
+        "f1": 0.01926252063841497,
+        "support": 835.0
+      },
+      "Shooting": {
+        "precision": 0.18658280922431866,
+        "recall": 0.26828309305373527,
+        "f1": 0.22009569377990432,
+        "support": 7630.0
+      }
+    }
+  },
+  "video_level": {
+    "accuracy": 0.05319148936170213,
+    "balanced_accuracy": 0.22512077294685992,
+    "macro_precision": 0.07503573662110248,
+    "macro_recall": 0.22512077294685992,
+    "macro_f1": 0.08376509346336931,
+    "weighted_precision": 0.02539212862902536,
+    "weighted_recall": 0.05319148936170213,
+    "weighted_f1": 0.029390914834330095,
+    "per_class": {
+      "Abuse": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 2.0
+      },
+      "Assault": {
+        "precision": 0.024390243902439025,
+        "recall": 0.3333333333333333,
+        "f1": 0.045454545454545456,
+        "support": 3.0
+      },
+      "Fighting": {
+        "precision": 0.25,
+        "recall": 0.2,
+        "f1": 0.2222222222222222,
+        "support": 5.0
+      },
+      "Normal_Videos": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 150.0
+      },
+      "Robbery": {
+        "precision": 0.03296703296703297,
+        "recall": 0.6,
+        "f1": 0.0625,
+        "support": 5.0
+      },
+      "Shooting": {
+        "precision": 0.14285714285714285,
+        "recall": 0.21739130434782608,
+        "f1": 0.1724137931034483,
+        "support": 23.0
+      }
+    }
+  }
+}
