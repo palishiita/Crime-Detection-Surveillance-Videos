@@ -57,9 +57,9 @@ def main():
             cfg.data.max_per_class_test = 1500
             cfg.data.weighted_sampling = False
             cfg.epochs = 25
-            cfg.model_name = "mobilenetv2"
+            cfg.model_name = "vgg16"
             cfg.freeze_backbone = False
-            cfg.experiment_name = "final_mobilenetv2"
+            cfg.experiment_name = "final_vgg16"
 
         out = train(cfg)
         print("\nTraining done:", out)

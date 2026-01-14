@@ -1,107 +1,107 @@
 {
-  "checkpoint": "experiments/mobilenetv2/debug_run/checkpoints/best_bal_acc.pt",
+  "checkpoint": "experiments/mobilenetv2/final_mobilenetv2/checkpoints/best_bal_acc.pt",
   "model_name": "mobilenetv2",
   "epoch": 1,
   "tag": "best_balanced_accuracy",
-  "best_score_in_ckpt": 0.0,
+  "best_score_in_ckpt": 0.38934088193481076,
   "temporal_aggregation": {
     "method": "mean_probs",
-    "smoothing": "none",
+    "smoothing": "ema_probs",
     "smoothing_alpha": 0.7
   },
   "frame_level": {
-    "accuracy": 0.10333333333333333,
-    "balanced_accuracy": 0.10333333333333333,
-    "macro_precision": 0.1317088269039208,
-    "macro_recall": 0.10333333333333333,
-    "macro_f1": 0.09687715238173954,
-    "weighted_precision": 0.1317088269039208,
-    "weighted_recall": 0.10333333333333333,
-    "weighted_f1": 0.09687715238173954,
+    "accuracy": 0.8014870750753846,
+    "balanced_accuracy": 0.19620110945071376,
+    "macro_precision": 0.2773004824194712,
+    "macro_recall": 0.19620110945071376,
+    "macro_f1": 0.18809642744815927,
+    "weighted_precision": 0.8363922036148644,
+    "weighted_recall": 0.8014870750753846,
+    "weighted_f1": 0.7927957888436772,
     "per_class": {
       "Abuse": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 50.0
+        "precision": 0.012987012987012988,
+        "recall": 0.050505050505050504,
+        "f1": 0.02066115702479339,
+        "support": 297.0
       },
       "Assault": {
-        "precision": 0.1016949152542373,
-        "recall": 0.12,
-        "f1": 0.11009174311926606,
-        "support": 50.0
-      },
-      "Fighting": {
-        "precision": 0.4,
-        "recall": 0.08,
-        "f1": 0.13333333333333333,
-        "support": 50.0
-      },
-      "Normal_Videos": {
         "precision": 0.0,
         "recall": 0.0,
         "f1": 0.0,
-        "support": 50.0
+        "support": 2657.0
+      },
+      "Fighting": {
+        "precision": 0.0021635655560363477,
+        "recall": 0.008123476848090982,
+        "f1": 0.0034170510849137197,
+        "support": 1231.0
+      },
+      "Normal_Videos": {
+        "precision": 0.9167634360577639,
+        "recall": 0.9480693435152112,
+        "f1": 0.9321536155977052,
+        "support": 64952.0
       },
       "Robbery": {
-        "precision": 0.19672131147540983,
-        "recall": 0.24,
-        "f1": 0.21621621621621623,
-        "support": 50.0
+        "precision": 0.03395784543325527,
+        "recall": 0.10419161676646707,
+        "f1": 0.05122166617603768,
+        "support": 835.0
       },
       "Shooting": {
-        "precision": 0.09183673469387756,
-        "recall": 0.18,
-        "f1": 0.12162162162162163,
-        "support": 50.0
+        "precision": 0.6979310344827586,
+        "recall": 0.06631716906946265,
+        "f1": 0.12112507480550569,
+        "support": 7630.0
       }
     }
   },
   "video_level": {
-    "accuracy": 0.0,
-    "balanced_accuracy": 0.0,
-    "macro_precision": 0.0,
-    "macro_recall": 0.0,
-    "macro_f1": 0.0,
-    "weighted_precision": 0.0,
-    "weighted_recall": 0.0,
-    "weighted_f1": 0.0,
+    "accuracy": 0.7606382978723404,
+    "balanced_accuracy": 0.17729468599033815,
+    "macro_precision": 0.24767932489451475,
+    "macro_recall": 0.17729468599033815,
+    "macro_f1": 0.18722943722943722,
+    "weighted_precision": 0.7803797468354431,
+    "weighted_recall": 0.7606382978723404,
+    "weighted_f1": 0.7515542967670625,
     "per_class": {
       "Abuse": {
         "precision": 0.0,
         "recall": 0.0,
         "f1": 0.0,
-        "support": 1.0
+        "support": 2.0
       },
       "Assault": {
         "precision": 0.0,
         "recall": 0.0,
         "f1": 0.0,
-        "support": 0.0
+        "support": 3.0
       },
       "Fighting": {
         "precision": 0.0,
         "recall": 0.0,
         "f1": 0.0,
-        "support": 0.0
+        "support": 5.0
       },
       "Normal_Videos": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 30.0
+        "precision": 0.8860759493670886,
+        "recall": 0.9333333333333333,
+        "f1": 0.9090909090909091,
+        "support": 150.0
       },
       "Robbery": {
         "precision": 0.0,
         "recall": 0.0,
         "f1": 0.0,
-        "support": 0.0
+        "support": 5.0
       },
       "Shooting": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "support": 0.0
+        "precision": 0.6,
+        "recall": 0.13043478260869565,
+        "f1": 0.21428571428571427,
+        "support": 23.0
       }
     }
   }
