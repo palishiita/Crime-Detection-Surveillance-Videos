@@ -16,7 +16,7 @@ def parse_args() -> argparse.Namespace:
 
     eval_p = subparsers.add_parser("evaluate", help="Evaluate a trained model")
     eval_p.add_argument("--ckpt", type=str, required=True)
-    eval_p.add_argument("--model", type=str, default="resnet50", choices=["resnet50", "mobilenetv2", "vgg16"])
+    eval_p.add_argument("--model", type=str, default="mobilenetv2", choices=["resnet50", "mobilenetv2", "vgg16"])
     eval_p.add_argument("--device", type=str, default="cpu")
     eval_p.add_argument("--root_dir", type=str, default="dataset")
     eval_p.add_argument("--out_dir", type=str, default="results")
@@ -25,7 +25,9 @@ def parse_args() -> argparse.Namespace:
     eval_p.add_argument("--img_size", type=int, default=224)
     eval_p.add_argument("--dropout", type=float, default=0.4)
     eval_p.add_argument("--max_per_class_test", type=int, default=None)
-    eval_p.add_argument("--agg_method", type=str, default="mean_probs")
+
+    # Updated defaults for crime detection (recall-friendly)
+    eval_p.add_argument("--agg_method", type=str, default="topk_mean_probs:0.05")
     eval_p.add_argument("--smoothing", type=str, default="none")
     eval_p.add_argument("--smoothing_alpha", type=float, default=0.7)
 
@@ -52,14 +54,29 @@ def main():
             cfg.model_name = "mobilenetv2"
             cfg.experiment_name = "debug_run"
 
+            # keep defaults or set explicitly
+            cfg.video_agg_method = "topk_mean_probs:0.10"
+            cfg.video_smoothing = "none"
+            cfg.monitor_metric = "video_macro_f1"
+
         elif args.mode == "final":
-            cfg.data.max_per_class_train = 7000
-            cfg.data.max_per_class_test = 1500
+            cfg.data.max_per_class_train = None
+            cfg.data.max_per_class_test = None
             cfg.data.weighted_sampling = False
+
             cfg.epochs = 25
-            cfg.model_name = "vgg16"
-            cfg.freeze_backbone = False
-            cfg.experiment_name = "final_vgg16"
+            cfg.model_name = "mobilenetv2"
+            cfg.freeze_backbone = True
+            cfg.fine_tune = True
+            cfg.fine_tune_start_epoch = 4
+            cfg.head_lr = 1e-4
+            cfg.backbone_lr = 1e-5
+
+            cfg.video_agg_method = "topk_mean_probs:0.05"
+            cfg.video_smoothing = "none"
+            cfg.monitor_metric = "video_macro_recall"
+
+            cfg.experiment_name = "final_mobilenet_topk"
 
         out = train(cfg)
         print("\nTraining done:", out)

@@ -1,4 +1,3 @@
-# src/train/validate_video.py
 from __future__ import annotations
 
 from typing import Dict, Optional, List
@@ -22,14 +21,9 @@ def validate_video(
     agg_method: str = "mean_probs",
     smoothing: str = "none",
     smoothing_alpha: float = 0.7,
+    normal_class_name: str = "Normal",
+    topk_score: str = "max",
 ) -> Dict:
-    """
-    Video-level validation using temporal aggregation.
-
-    Loader must yield:
-      (x, y, meta)
-    where meta is a list of SampleMeta with .video_id and .frame_id
-    """
     model.eval()
 
     total_loss = 0.0
@@ -47,7 +41,10 @@ def validate_video(
         metas = batch[2]
         for m in metas:
             video_ids.append(str(m.video_id))
-            frame_ids.append(int(m.frame_id))
+            try:
+                frame_ids.append(int(m.frame_id))
+            except Exception:
+                frame_ids.append(len(frame_ids))  # fallback ordering
 
         logits = model(x)
 
@@ -67,6 +64,14 @@ def validate_video(
     logits_np = np.concatenate(logits_all, axis=0)
     y_true_np = np.concatenate(y_true_all, axis=0)
 
+    # crime-aware top-k frame scoring
+    normal_idx = None
+    if topk_score == "crime_max":
+        if normal_class_name in CLASSES:
+            normal_idx = CLASSES.index(normal_class_name)
+        else:
+            raise ValueError(f"normal_class_name='{normal_class_name}' not in CLASSES={CLASSES}")
+
     video_res = aggregate_video_predictions(
         logits=logits_np,
         y_true=y_true_np,
@@ -75,6 +80,8 @@ def validate_video(
         method=agg_method,
         smoothing=smoothing,
         smoothing_alpha=smoothing_alpha,
+        normal_class_idx=normal_idx,
+        topk_score=topk_score,
     )
 
     metrics = compute_metrics(
@@ -85,12 +92,26 @@ def validate_video(
         cm_normalize=cm_normalize,
     )
 
+    # Add macro recall/precision for recall-oriented training
+    cm = metrics.confusion_matrix.astype(np.float64)
+    tp = np.diag(cm)
+    fn = np.sum(cm, axis=1) - tp
+    fp = np.sum(cm, axis=0) - tp
+
+    recall_per_class = tp / np.maximum(tp + fn, 1.0)
+    precision_per_class = tp / np.maximum(tp + fp, 1.0)
+
+    macro_recall = float(np.mean(recall_per_class))
+    macro_precision = float(np.mean(precision_per_class))
+
     return {
         "loss": avg_loss,
         "accuracy": metrics.accuracy,
         "balanced_accuracy": metrics.balanced_accuracy,
         "macro_f1": metrics.macro_f1,
         "weighted_f1": metrics.weighted_f1,
+        "macro_recall": macro_recall,
+        "macro_precision": macro_precision,
         "per_class": metrics.per_class,
         "confusion_matrix": metrics.confusion_matrix,
         "num_videos": int(len(video_res.video_ids)),

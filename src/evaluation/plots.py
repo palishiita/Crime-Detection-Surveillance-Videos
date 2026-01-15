@@ -1,159 +1,100 @@
 from __future__ import annotations
 
-import csv
 import os
-from pathlib import Path
-from typing import Dict, List, Union, Any
+from typing import Dict
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 
-def _read_history_csv(path: Union[str, Path]) -> List[Dict[str, Any]]:
-    path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"History CSV not found: {path}")
-
-    rows: List[Dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for r in reader:
-            parsed: Dict[str, Any] = {}
-            for k, v in r.items():
-                if v is None:
-                    parsed[k] = None
-                    continue
-                v = v.strip()
-                if v == "":
-                    parsed[k] = None
-                    continue
+def _read_csv(path: str) -> Dict[str, list]:
+    with open(path, "r", encoding="utf-8") as f:
+        header = f.readline().strip().split(",")
+        cols = {h: [] for h in header}
+        for line in f:
+            parts = line.strip().split(",")
+            for h, v in zip(header, parts):
+                # best-effort numeric parse
                 try:
-                    parsed[k] = float(v)
-                except ValueError:
-                    parsed[k] = v
-            rows.append(parsed)
-
-    if not rows:
-        raise RuntimeError(f"No rows found in history CSV: {path}")
-
-    return rows
+                    cols[h].append(float(v))
+                except Exception:
+                    cols[h].append(v)
+    return cols
 
 
-def _has_key(rows: List[Dict[str, Any]], key: str) -> bool:
-    for r in rows:
-        if key in r and r[key] is not None:
-            return True
-    return False
-
-
-def plot_history_csv(
-    history_csv: Union[str, Path],
-    out_dir: Union[str, Path],
-    prefix: str = "",
-) -> Dict[str, str]:
-    """
-    Creates interpretable training plots from history.csv.
-
-    Backward compatible:
-      - If only frame-level keys exist -> plots frame curves.
-      - If video-level keys exist -> plots video curves too.
-
-    Common expected columns (frame):
-      train_loss, val_loss, val_balanced_acc, val_macro_f1
-
-    New optional columns (video):
-      val_video_loss, val_video_balanced_acc, val_video_macro_f1
-    """
-    rows = _read_history_csv(history_csv)
-    out_dir = Path(out_dir)
-    os.makedirs(out_dir, exist_ok=True)
-
-    epochs = [int(r.get("epoch", i + 1) or (i + 1)) for i, r in enumerate(rows)]
-
-    def series(key: str) -> List[float]:
-        out: List[float] = []
-        for r in rows:
-            v = r.get(key, None)
-            out.append(float(v) if v is not None else float("nan"))
-        return out
-
-    saved: Dict[str, str] = {}
-
-    # Detect availability
-    has_val_loss = _has_key(rows, "val_loss")
-    has_val_video_loss = _has_key(rows, "val_video_loss")
-
-    has_val_bal = _has_key(rows, "val_balanced_acc")
-    has_val_video_bal = _has_key(rows, "val_video_balanced_acc")
-
-    has_val_f1 = _has_key(rows, "val_macro_f1")
-    has_val_video_f1 = _has_key(rows, "val_video_macro_f1")
-
-    # -----------------------
-    # Plot 1: Loss curves
-    # -----------------------
-    train_loss = series("train_loss")
-
+def _plot_series(xs, ys, title: str, xlabel: str, ylabel: str, out_path: str) -> str:
     plt.figure()
-    plt.plot(epochs, train_loss, label="train_loss")
-
-    if has_val_loss:
-        plt.plot(epochs, series("val_loss"), label="val_loss")
-
-    if has_val_video_loss:
-        plt.plot(epochs, series("val_video_loss"), label="val_video_loss")
-
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title("Loss Curves")
-    plt.legend()
-
-    loss_path = out_dir / f"{prefix}loss_curve.png"
-    plt.savefig(loss_path, bbox_inches="tight", dpi=200)
+    plt.plot(xs, ys)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
     plt.close()
-    saved["loss_curve"] = str(loss_path)
+    return out_path
 
-    # ------------------------------------
-    # Plot 2: Balanced Accuracy curves
-    # ------------------------------------
-    if has_val_bal or has_val_video_bal:
-        plt.figure()
 
-        if has_val_bal:
-            plt.plot(epochs, series("val_balanced_acc"), label="val_balanced_acc")
+def plot_history_csv(history_csv: str, out_dir: str) -> Dict[str, str]:
+    os.makedirs(out_dir, exist_ok=True)
+    cols = _read_csv(history_csv)
 
-        if has_val_video_bal:
-            plt.plot(epochs, series("val_video_balanced_acc"), label="val_video_balanced_acc")
+    epoch = cols.get("epoch")
+    if epoch is None:
+        raise ValueError("history.csv must contain an 'epoch' column")
 
-        plt.xlabel("Epoch")
-        plt.ylabel("Balanced Accuracy")
-        plt.title("Validation Balanced Accuracy")
-        plt.legend()
+    out_paths: Dict[str, str] = {}
 
-        bal_path = out_dir / f"{prefix}val_balanced_accuracy.png"
-        plt.savefig(bal_path, bbox_inches="tight", dpi=200)
-        plt.close()
-        saved["val_balanced_accuracy"] = str(bal_path)
+    # Loss
+    if "train_loss" in cols:
+        out_paths["train_loss"] = _plot_series(
+            epoch, cols["train_loss"],
+            "Train Loss", "Epoch", "Loss",
+            os.path.join(out_dir, "train_loss.png"),
+        )
 
-    # -------------------------
-    # Plot 3: Macro F1 curves
-    # -------------------------
-    if has_val_f1 or has_val_video_f1:
-        plt.figure()
+    if "val_loss" in cols:
+        out_paths["val_loss"] = _plot_series(
+            epoch, cols["val_loss"],
+            "Val Loss (Frame)", "Epoch", "Loss",
+            os.path.join(out_dir, "val_loss.png"),
+        )
 
-        if has_val_f1:
-            plt.plot(epochs, series("val_macro_f1"), label="val_macro_f1")
+    # Balanced accuracy (frame/video)
+    if "val_balanced_acc" in cols:
+        out_paths["val_balanced_acc"] = _plot_series(
+            epoch, cols["val_balanced_acc"],
+            "Val Balanced Accuracy (Frame)", "Epoch", "Balanced Accuracy",
+            os.path.join(out_dir, "val_balanced_acc.png"),
+        )
 
-        if has_val_video_f1:
-            plt.plot(epochs, series("val_video_macro_f1"), label="val_video_macro_f1")
+    if "val_video_balanced_acc" in cols:
+        out_paths["val_video_balanced_acc"] = _plot_series(
+            epoch, cols["val_video_balanced_acc"],
+            "Val Balanced Accuracy (Video)", "Epoch", "Balanced Accuracy",
+            os.path.join(out_dir, "val_video_balanced_acc.png"),
+        )
 
-        plt.xlabel("Epoch")
-        plt.ylabel("Macro F1")
-        plt.title("Validation Macro F1")
-        plt.legend()
+    # Macro F1 (frame/video)
+    if "val_macro_f1" in cols:
+        out_paths["val_macro_f1"] = _plot_series(
+            epoch, cols["val_macro_f1"],
+            "Val Macro F1 (Frame)", "Epoch", "Macro F1",
+            os.path.join(out_dir, "val_macro_f1.png"),
+        )
 
-        f1_path = out_dir / f"{prefix}val_macro_f1.png"
-        plt.savefig(f1_path, bbox_inches="tight", dpi=200)
-        plt.close()
-        saved["val_macro_f1"] = str(f1_path)
+    if "val_video_macro_f1" in cols:
+        out_paths["val_video_macro_f1"] = _plot_series(
+            epoch, cols["val_video_macro_f1"],
+            "Val Macro F1 (Video)", "Epoch", "Macro F1",
+            os.path.join(out_dir, "val_video_macro_f1.png"),
+        )
 
-    return saved
+    # Macro Recall (video) — NEW (only if present)
+    if "val_video_macro_recall" in cols:
+        out_paths["val_video_macro_recall"] = _plot_series(
+            epoch, cols["val_video_macro_recall"],
+            "Val Macro Recall (Video)", "Epoch", "Macro Recall",
+            os.path.join(out_dir, "val_video_macro_recall.png"),
+        )
+
+    return out_paths
