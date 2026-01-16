@@ -60,12 +60,12 @@ def main():
             cfg.monitor_metric = "video_macro_f1"
 
         elif args.mode == "final":
-            cfg.data.max_per_class_train = None
-            cfg.data.max_per_class_test = None
+            cfg.data.max_per_class_train = 7000
+            cfg.data.max_per_class_test = 1500
             cfg.data.weighted_sampling = False
 
-            cfg.epochs = 25
-            cfg.model_name = "mobilenetv2"
+            cfg.epochs = 10
+            cfg.model_name = "vgg16"
             cfg.freeze_backbone = True
             cfg.fine_tune = True
             cfg.fine_tune_start_epoch = 4
@@ -76,7 +76,7 @@ def main():
             cfg.video_smoothing = "none"
             cfg.monitor_metric = "video_macro_recall"
 
-            cfg.experiment_name = "final_mobilenet_topk"
+            cfg.experiment_name = "final_vgg16_topk"
 
         out = train(cfg)
         print("\nTraining done:", out)
