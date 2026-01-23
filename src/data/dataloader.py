@@ -23,20 +23,12 @@ class DataConfig:
     batch_size: int = 32
     num_workers: int = 2
     pin_memory: bool = False
-
-    # imbalance handling (train only)
     weighted_sampling: bool = True
-
-    # folder/metadata behavior
     strict_class_folders: bool = True
     return_meta: bool = False
     seed: int = 42
-
-    # debug caps (optional) - caps frames per class
     max_per_class_train: Optional[int] = None
     max_per_class_test: Optional[int] = None
-
-    # validation split from train
     val_split: float = 0.1
     video_wise_split: bool = True  # if False -> frame-wise split
 
@@ -48,47 +40,30 @@ def build_transforms(img_size: int = 224) -> Tuple[transforms.Compose, transform
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
-
     test_tfms = transforms.Compose([
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
-
     return train_tfms, test_tfms
 
 
 def collate_with_meta(batch):
-    """
-    Dataset item format:
-      - (img, label)
-      - or (img, label, meta)
-
-    Returns:
-      - imgs: Tensor [B,C,H,W]
-      - labels: Tensor [B]
-      - metas: list (kept as python list, not collated into tensors)
-    """
     imgs = torch.stack([b[0] for b in batch], dim=0)
     labels = torch.tensor([b[1] for b in batch], dtype=torch.long)
-
     if len(batch[0]) >= 3:
         metas = [b[2] for b in batch]
         return imgs, labels, metas
-
     return imgs, labels
 
 
 def _make_weighted_sampler(labels: List[int], num_classes: int, seed: int = 42) -> WeightedRandomSampler:
     counts = np.bincount(np.array(labels, dtype=np.int64), minlength=num_classes)
     counts = np.maximum(counts, 1)
-
     class_weights = 1.0 / counts
     sample_weights = class_weights[np.array(labels, dtype=np.int64)]
-
     g = torch.Generator()
     g.manual_seed(seed)
-
     return WeightedRandomSampler(
         weights=torch.as_tensor(sample_weights, dtype=torch.double),
         num_samples=len(sample_weights),
@@ -118,14 +93,11 @@ def _split_train_indices_frame_wise(
 ) -> Tuple[List[int], List[int]]:
     if not (0.0 < val_split < 1.0):
         raise ValueError(f"val_split must be in (0,1). Got: {val_split}")
-
     rng = np.random.default_rng(seed)
     all_idx = np.arange(len(train_ds))
     rng.shuffle(all_idx)
-
     n_val = int(round(len(all_idx) * val_split))
     n_val = max(1, n_val)
-
     val_idx = all_idx[:n_val].tolist()
     train_idx = all_idx[n_val:].tolist()
     return train_idx, val_idx
@@ -137,12 +109,8 @@ def _split_train_indices_video_wise_stratified(
     seed: int,
 ) -> Tuple[List[int], List[int]]:
     """
-    Stratified video-wise split:
       - Keep all frames of a video together
       - Approximate class stratification by splitting videos within each class
-
-    Assumes train_ds.samples items are:
-      (path, label, video_id, frame_id)
     """
     if not (0.0 < val_split < 1.0):
         raise ValueError(f"val_split must be in (0,1). Got: {val_split}")
@@ -185,16 +153,10 @@ def _split_train_indices_video_wise_stratified(
 def build_dataloaders(
     cfg: Optional[DataConfig] = None
 ) -> Tuple[DataLoader, DataLoader, DataLoader, Dict]:
-    """
-    Returns:
-      train_loader, val_loader, test_loader, artifacts
-    """
     if cfg is None:
         cfg = DataConfig()
 
     train_tfms, test_tfms = build_transforms(cfg.img_size)
-
-    # Build a SINGLE train dataset, then split indices into train/val
     train_full_ds = CrimeFramesDataset(
         root_dir=cfg.root_dir,
         split="train",
@@ -205,7 +167,6 @@ def build_dataloaders(
         max_per_class=cfg.max_per_class_train,
         seed=cfg.seed,
     )
-
     test_ds = CrimeFramesDataset(
         root_dir=cfg.root_dir,
         split="test",
@@ -217,7 +178,6 @@ def build_dataloaders(
         seed=cfg.seed,
     )
 
-    # Split train -> train/val
     if cfg.val_split is None or cfg.val_split <= 0.0:
         train_idx = list(range(len(train_full_ds)))
         val_idx: List[int] = []
@@ -230,15 +190,12 @@ def build_dataloaders(
     train_ds = Subset(train_full_ds, train_idx)
     val_ds = Subset(train_full_ds, val_idx)
 
-    # Train sampler (train only)
     sampler = None
     shuffle = True
     if cfg.weighted_sampling and len(train_idx) > 0:
         train_labels = [int(train_full_ds.samples[i][1]) for i in train_idx]
         sampler = _make_weighted_sampler(train_labels, num_classes=len(train_full_ds.classes), seed=cfg.seed)
         shuffle = False
-
-    # collate function when meta is enabled
     collate = collate_with_meta if cfg.return_meta else None
 
     train_loader = DataLoader(
@@ -286,25 +243,3 @@ def build_dataloaders(
     artifacts["split_sizes"] = {"train": len(train_idx), "val": len(val_idx), "test": len(test_ds)}
 
     return train_loader, val_loader, test_loader, artifacts
-
-
-def sanity_check(cfg: Optional[DataConfig] = None, num_batches: int = 1) -> None:
-    train_loader, val_loader, test_loader, artifacts = build_dataloaders(cfg)
-
-    print("CLASSES:", artifacts["classes"])
-    print("Split sizes:", artifacts["split_sizes"])
-    print("Train counts:", artifacts["train_counts"])
-    print("Val counts:", artifacts["val_counts"])
-    print("Test counts:", artifacts["test_counts"])
-    print("Class weights (loss):", artifacts["class_weights"].tolist())
-
-    for i, batch in enumerate(train_loader):
-        x, y = batch[0], batch[1]
-        print(f"Train batch {i}: x={tuple(x.shape)}, y={tuple(y.shape)}")
-        if i + 1 >= num_batches:
-            break
-
-    for i, batch in enumerate(val_loader):
-        x, y = batch[0], batch[1]
-        print(f"Val batch {i}: x={tuple(x.shape)}, y={tuple(y.shape)}")
-        break

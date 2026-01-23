@@ -1,15 +1,12 @@
 from __future__ import annotations
-
 import os
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Dict, Optional, Tuple, List
-
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 from tqdm import tqdm
-
+from pathlib import Path
+from typing import Dict, Optional, Tuple, List
+from dataclasses import dataclass, field
+from torch.utils.data import DataLoader
 from src.data.dataloader import DataConfig, build_dataloaders
 from src.data.dataset import CLASSES
 from src.evaluation.plots import plot_history_csv
@@ -17,56 +14,40 @@ from src.models.model import build_mobilenetv2, build_resnet50, build_vgg16
 from src.train.validate import validate
 from src.train.validate_video import validate_video
 
-
-# -------------------------
-# Config
-# -------------------------
 @dataclass
 class TrainConfig:
     # data
     data: DataConfig = field(default_factory=DataConfig)
-
     # model
-    model_name: str = "resnet50"   # "resnet50" | "mobilenetv2" | "vgg16"
+    model_name: str = "resnet50"
     num_classes: int = 6
-
     # transfer learning / fine-tuning
-    freeze_backbone: bool = True            # stage A: feature extraction
-    fine_tune: bool = True                  # stage B: unfreeze last block(s)
-    fine_tune_start_epoch: int = 4          # epoch at which we unfreeze last blocks
-    backbone_lr: float = 1e-5               # small lr for backbone when fine-tuning
-    head_lr: float = 1e-4                   # larger lr for head
-    freeze_bn_stats: bool = True            # keep BN running stats frozen for stability
-
+    freeze_backbone: bool = True           
+    fine_tune: bool = True                
+    fine_tune_start_epoch: int = 4 
+    backbone_lr: float = 1e-5 
+    head_lr: float = 1e-4 
+    freeze_bn_stats: bool = True
     # optimization
     weight_decay: float = 1e-4
     epochs: int = 10
-
     # regularization
     dropout: float = 0.4
-
     # training control
-    device: str = "cpu"            # "cpu" or "cuda"
+    device: str = "cpu"
     log_every: int = 100
-
     # output
     out_dir: str = "experiments"
     experiment_name: str = "baseline"
-
     # early stopping
     early_stop_patience: int = 5
-    # If validate_video returns macro_recall, we'll use it. Otherwise macro_f1.
-    monitor_metric: str = "video_macro_recall"  # "video_macro_recall" | "video_macro_f1" | "video_balanced_accuracy"
-
+    monitor_metric: str = "video_macro_recall"
     # video-level validation config
     video_agg_method: str = "topk_mean_probs:20"
     video_smoothing: str = "ema_probs"
     video_smoothing_alpha: float = 0.7
 
 
-# -------------------------
-# Model helpers
-# -------------------------
 def build_model(model_name: str, num_classes: int, freeze_backbone: bool, dropout: float) -> nn.Module:
     name = model_name.lower().strip()
     if name == "resnet50":
@@ -102,29 +83,18 @@ def _get_head_module(model: nn.Module, model_name: str) -> nn.Module:
 
 
 def _freeze_backbone_keep_head_trainable(model: nn.Module, model_name: str) -> None:
-    """
-    Freezes everything, then explicitly unfreezes the head (robust feature extraction).
-    """
     _freeze_all(model)
     head = _get_head_module(model, model_name)
     _set_requires_grad(head, True)
 
 
 def _set_batchnorm_eval(model: nn.Module) -> None:
-    """
-    Freeze BN running stats by putting BN layers into eval() mode.
-    (Weights can still be trainable if requires_grad=True; this only affects running stats.)
-    """
     for m in model.modules():
         if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
             m.eval()
 
 
 def _unfreeze_last_blocks(model: nn.Module, model_name: str) -> List[nn.Module]:
-    """
-    Unfreezes a small "last block" for partial fine-tuning (transfer learning best practice).
-    Returns list of modules that were unfrozen (useful for debugging/logging).
-    """
     name = model_name.lower().strip()
     unfrozen: List[nn.Module] = []
 
@@ -134,14 +104,13 @@ def _unfreeze_last_blocks(model: nn.Module, model_name: str) -> List[nn.Module]:
         unfrozen.append(model.layer4)
 
     elif name in ("mobilenetv2", "mobilenet_v2", "mobilenet"):
-        # Unfreeze last block (and optionally second-last if you want more adaptation)
-        # Safe default: last block only
+        # Unfreeze last block 
         if hasattr(model, "features"):
             _set_requires_grad(model.features[-1], True)
             unfrozen.append(model.features[-1])
 
     elif name == "vgg16":
-        # Unfreeze last conv block: last ~5 layers of features is a decent approximation
+        # Unfreeze last conv block
         if hasattr(model, "features"):
             # VGG features is a Sequential; unfreeze last chunk
             last_n = 5
@@ -262,21 +231,12 @@ def _write_csv(rows: list[dict], path: str) -> None:
 
 
 def _get_monitor_value(cfg: TrainConfig, val_video_stats: Dict[str, float]) -> Tuple[str, float]:
-    """
-    Prefer recall-oriented metric if present.
-    """
-    # Map your chosen monitor to available keys
-    # validate_video currently provides: accuracy, balanced_accuracy, macro_f1, weighted_f1, (maybe) macro_recall in future.
     if cfg.monitor_metric == "video_macro_recall":
         if "macro_recall" in val_video_stats:
             return ("video_macro_recall", float(val_video_stats["macro_recall"]))
-        # fallback (still recall-friendly-ish)
         return ("video_macro_f1", float(val_video_stats.get("macro_f1", float("-inf"))))
-
     if cfg.monitor_metric == "video_macro_f1":
         return ("video_macro_f1", float(val_video_stats.get("macro_f1", float("-inf"))))
-
-    # default: balanced accuracy
     return ("video_balanced_accuracy", float(val_video_stats.get("balanced_accuracy", float("-inf"))))
 
 
@@ -285,12 +245,8 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
         cfg = TrainConfig()
 
     device = torch.device(cfg.device if (cfg.device == "cpu" or torch.cuda.is_available()) else "cpu")
-
     # Data
     train_loader, val_loader, test_loader, artifacts = build_dataloaders(cfg.data)
-
-    # Loss strategy (avoid double imbalance correction)
-    # If weighted sampling is enabled in DataConfig, do NOT also use weighted CE.
     weighted_sampling = bool(getattr(cfg.data, "weighted_sampling", False))
 
     if getattr(cfg.data, "max_per_class_train", None) is not None:
@@ -306,11 +262,9 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
     # Model
     model = build_model(cfg.model_name, cfg.num_classes, cfg.freeze_backbone, cfg.dropout).to(device)
 
-    # Robust feature extraction: explicitly keep head trainable
     if cfg.freeze_backbone:
         _freeze_backbone_keep_head_trainable(model, cfg.model_name)
 
-    # Optimizer (discriminative LR)
     optimizer = _build_optimizer(
         model=model,
         model_name=cfg.model_name,
@@ -324,7 +278,6 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
         optimizer, mode="max", factor=0.5, patience=2
     )
 
-    # Output dirs
     exp_dir = Path(cfg.out_dir) / cfg.model_name / cfg.experiment_name
     ckpt_dir = Path(_ensure_dir(exp_dir / "checkpoints"))
     log_dir = Path(_ensure_dir(exp_dir / "logs"))
@@ -345,7 +298,6 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
         print(f"\nEpoch {epoch}/{cfg.epochs}")
         print(f"Device: {device}")
 
-        # Stage B: partial fine-tuning (unfreeze last block)
         if cfg.fine_tune and (epoch >= cfg.fine_tune_start_epoch) and not did_unfreeze:
             print(f"Fine-tuning: unfreezing last block(s) for {cfg.model_name} (epoch {epoch})")
             _unfreeze_last_blocks(model, cfg.model_name)
@@ -353,7 +305,6 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
             if cfg.freeze_bn_stats:
                 _set_batchnorm_eval(model)
 
-            # Rebuild optimizer so newly-trainable backbone params get backbone_lr
             optimizer = _build_optimizer(
                 model=model,
                 model_name=cfg.model_name,
@@ -361,7 +312,7 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
                 backbone_lr=cfg.backbone_lr,
                 weight_decay=cfg.weight_decay,
             )
-            # Recreate scheduler for new optimizer
+
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, mode="max", factor=0.5, patience=2
             )
@@ -397,14 +348,12 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
             smoothing_alpha=cfg.video_smoothing_alpha,
         )
 
-        # pull metrics
         frame_bal_acc = float(val_stats["balanced_accuracy"])
         frame_macro_f1 = float(val_stats["macro_f1"])
 
         video_bal_acc = float(val_video_stats["balanced_accuracy"])
         video_macro_f1 = float(val_video_stats["macro_f1"])
 
-        # update scheduler based on monitor score
         monitor_name, monitor_score = _get_monitor_value(cfg, val_video_stats)
         scheduler.step(monitor_score)
 
@@ -430,12 +379,10 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
             "monitor_name": monitor_name,
             "monitor_score": float(monitor_score),
 
-            # show both LRs (if present)
             "lr_group0": float(optimizer.param_groups[0]["lr"]),
             "lr_group1": float(optimizer.param_groups[1]["lr"]) if len(optimizer.param_groups) > 1 else float("nan"),
             "did_unfreeze": int(did_unfreeze),
         }
-        # include macro_recall if validate_video provides it
         if "macro_recall" in val_video_stats:
             row["val_video_macro_recall"] = float(val_video_stats["macro_recall"])
 
@@ -449,7 +396,6 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
             f"(videos={row['val_num_videos']}) | Monitor={monitor_name}:{monitor_score:.4f}"
         )
 
-        # Save best monitor checkpoint
         if monitor_score > best_score:
             best_score = monitor_score
             best_epoch = epoch
@@ -466,7 +412,6 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
         else:
             epochs_no_improve += 1
 
-        # Keep your previous "best by balanced acc" and "best by macro f1" too (useful)
         if video_bal_acc > best_video_bal_acc:
             best_video_bal_acc = video_bal_acc
             _save_checkpoint(
@@ -489,12 +434,10 @@ def train(cfg: Optional[TrainConfig] = None) -> Dict:
                 tag="best_video_macro_f1",
             )
 
-        # Early stopping on monitor metric
         if cfg.early_stop_patience > 0 and epochs_no_improve >= cfg.early_stop_patience:
             print(f"Early stopping at epoch {epoch}. Best {monitor_name} at epoch {best_epoch}")
             break
 
-    # Save history + plots
     hist_path = str(log_dir / "history.csv")
     _write_csv(history, hist_path)
 

@@ -1,13 +1,10 @@
 from __future__ import annotations
-
 import json
 import os
-from typing import Dict, Optional
-
-import numpy as np
 import torch
+import numpy as np
+from typing import Dict, Optional
 from torch.utils.data import DataLoader
-
 from src.data.dataset import CLASSES
 from src.evaluation.metrics import compute_metrics
 from src.evaluation.temporal import aggregate_video_predictions
@@ -20,18 +17,12 @@ def evaluate(
     device: torch.device,
     out_dir: str,
     cm_normalize: Optional[str] = None,
-    # Better defaults for crime detection:
     agg_method: str = "topk_mean_probs:0.05",
     smoothing: str = "none",
     smoothing_alpha: float = 0.7,
-    # Optional: only used if you want crime-aware top-k scoring
     normal_class_name: str = "Normal",
     topk_score: str = "max",
 ) -> Dict:
-    """
-    Runs frame-level and video-level evaluation and saves metrics to out_dir.
-    Expects loader yields (x, y, meta).
-    """
     os.makedirs(out_dir, exist_ok=True)
     model.eval()
 
@@ -97,7 +88,6 @@ def evaluate(
         cm_normalize=cm_normalize,
     )
 
-    # Add macro recall/precision (from confusion matrix)
     cm = video_metrics.confusion_matrix.astype(np.float64)
     tp = np.diag(cm)
     fn = np.sum(cm, axis=1) - tp

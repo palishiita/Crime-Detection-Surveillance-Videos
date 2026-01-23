@@ -1,11 +1,8 @@
 from __future__ import annotations
-
-from typing import Dict, Optional, List
-
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-
+from typing import Dict, Optional, List
 from src.data.dataset import CLASSES
 from src.evaluation.metrics import compute_metrics
 from src.evaluation.temporal import aggregate_video_predictions
@@ -92,15 +89,12 @@ def validate_video(
         cm_normalize=cm_normalize,
     )
 
-    # Add macro recall/precision for recall-oriented training
     cm = metrics.confusion_matrix.astype(np.float64)
     tp = np.diag(cm)
     fn = np.sum(cm, axis=1) - tp
     fp = np.sum(cm, axis=0) - tp
-
     recall_per_class = tp / np.maximum(tp + fn, 1.0)
     precision_per_class = tp / np.maximum(tp + fp, 1.0)
-
     macro_recall = float(np.mean(recall_per_class))
     macro_precision = float(np.mean(precision_per_class))
 

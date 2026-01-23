@@ -1,15 +1,9 @@
 from __future__ import annotations
-
-from typing import Dict, Optional
-
 import torch
-from torch.utils.data import DataLoader
-
-from src.evaluation.metrics import (
-    collect_preds_from_loader,
-    compute_metrics,
-)
+from typing import Dict, Optional
 from src.data.dataset import CLASSES
+from torch.utils.data import DataLoader
+from src.evaluation.metrics import collect_preds_from_loader, compute_metrics
 
 
 def validate(
@@ -19,32 +13,10 @@ def validate(
     loss_fn: Optional[torch.nn.Module] = None,
     cm_normalize: Optional[str] = None,
 ) -> Dict:
-    """
-    Run validation on a dataloader.
-
-    Args:
-      model: trained model
-      loader: validation/test DataLoader
-      device: torch.device("cpu" or "cuda")
-      loss_fn: optional loss function (e.g. CrossEntropyLoss)
-      cm_normalize: None | 'true' | 'pred' | 'all'
-
-    Returns:
-      Dictionary with:
-        - loss (if loss_fn provided)
-        - accuracy
-        - balanced_accuracy
-        - macro_f1
-        - weighted_f1
-        - per_class metrics
-        - confusion_matrix
-    """
     model.eval()
-
     total_loss = 0.0
     total_samples = 0
 
-    # --- Optional loss computation ---
     if loss_fn is not None:
         with torch.no_grad():
             for batch in loader:
@@ -62,7 +34,6 @@ def validate(
     else:
         avg_loss = None
 
-    # --- Metrics computation ---
     y_true, y_pred = collect_preds_from_loader(model, loader, device)
 
     metrics = compute_metrics(

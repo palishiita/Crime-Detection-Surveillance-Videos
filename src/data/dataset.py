@@ -1,22 +1,17 @@
 from __future__ import annotations
-
 import random
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
-
 from PIL import Image
 from torch.utils.data import Dataset
-
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 CLASSES: List[str] = ["Abuse", "Assault", "Fighting", "Normal_Videos", "Robbery", "Shooting"]
 CLASS_TO_IDX: Dict[str, int] = {c: i for i, c in enumerate(CLASSES)}
 
-
 @dataclass(frozen=True)
 class SampleMeta:
-    """Extra info we can keep for debugging / video-wise evaluation later."""
     path: str
     label_name: str
     label: int
@@ -26,18 +21,6 @@ class SampleMeta:
 
 
 def _parse_video_and_frame(filename: str) -> Tuple[str, int]:
-    """
-    Parse video_id and frame_id from filenames.
-
-    Supported examples:
-      1) Normal_Videos_003_x264_0.png   -> video_id="003", frame_id=0
-      2) Abuse042_x264_13850.png        -> video_id="Abuse042", frame_id=13850
-         (same idea for Assault123_x264_55.png, etc.)
-
-    Returns:
-      video_id (string)
-      frame_id (int)
-    """
     stem = Path(filename).stem  # remove extension
 
     # Case A: class folder already provides the class, filename uses: <Class><video>_x264_<frame>
@@ -53,7 +36,6 @@ def _parse_video_and_frame(filename: str) -> Tuple[str, int]:
         return m.group(1), int(m.group(2))
 
     # Case C: fallback: last numeric token is frame_id; video_id is everything before "_x264_"
-    # Example: Something_weird_x264_123 -> video_id="Something_weird", frame_id=123
     m = re.search(r"^(.*)_x264_(\d+)$", stem)
     if m:
         return m.group(1), int(m.group(2))
@@ -62,71 +44,37 @@ def _parse_video_and_frame(filename: str) -> Tuple[str, int]:
 
 
 class CrimeFramesDataset(Dataset):
-    """
-    Frame-level dataset for crime classification.
-    Expects directory layout like:
-
-      dataset/
-        train/
-          Abuse/*.png
-          ...
-          Normal_Videos/*.png
-        test/
-          Abuse/*.png
-          ...
-
-    Each sample corresponds to a single image frame.
-    """
-
     IMG_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
 
     def __init__(
         self,
         root_dir: Union[str, Path],
-        split: str,  # "train" or "test"
+        split: str,
         classes: Optional[List[str]] = None,
         transform: Optional[Callable] = None,
         return_meta: bool = False,
         strict_class_folders: bool = True,
-        max_per_class: Optional[int] = None,  # limit samples per class (debug/balanced runs)
-        seed: int = 42,                       # reproducible sampling
+        max_per_class: Optional[int] = None, 
+        seed: int = 42, 
     ) -> None:
-        """
-        Args:
-          root_dir: dataset directory (e.g., "dataset")
-          split: "train" or "test"
-          classes: class list; defaults to global CLASSES
-          transform: torchvision transform pipeline
-          return_meta: if True, __getitem__ returns (img, label, meta)
-          strict_class_folders: if True, raises if class folders are missing
-          max_per_class: if set, randomly selects up to N frames per class (balanced subset)
-          seed: RNG seed used when max_per_class is set (and also to shuffle per class)
-        """
         self.root_dir = Path(root_dir)
         self.split = split
         self.transform = transform
         self.return_meta = return_meta
-
         self.classes = list(classes) if classes is not None else list(CLASSES)
         self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
-
         self.split_dir = self.root_dir / split
         if not self.split_dir.exists():
             raise FileNotFoundError(f"Split directory not found: {self.split_dir}")
-
         missing = [c for c in self.classes if not (self.split_dir / c).exists()]
         if missing and strict_class_folders:
             raise FileNotFoundError(
                 f"Missing class folders in {self.split_dir}: {missing}\n"
                 f"Expected folders: {self.classes}"
             )
-
         self.samples: List[Tuple[Path, int, str, int]] = []
-        # Each tuple: (path, label_idx, video_id, frame_id)
-
         rng = random.Random(seed)
 
-        # Optional info message (helps avoid confusion later)
         if max_per_class is not None:
             print(f"[CrimeFramesDataset] Using max_per_class={max_per_class} for split='{split}' (seed={seed}).")
 
@@ -189,10 +137,6 @@ class CrimeFramesDataset(Dataset):
         return counts
 
     def group_by_video(self) -> Dict[str, List[int]]:
-        """
-        Returns mapping: video_id -> list of sample indices.
-        Useful later for video-level evaluation/aggregation.
-        """
         out: Dict[str, List[int]] = {}
         for i, (_, _, video_id, _) in enumerate(self.samples):
             out.setdefault(video_id, []).append(i)

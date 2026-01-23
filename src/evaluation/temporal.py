@@ -1,10 +1,7 @@
 from __future__ import annotations
-
+import numpy as np
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional, Union
-
-import numpy as np
-
 
 @dataclass
 class VideoAggResult:
@@ -41,9 +38,6 @@ def _parse_topk(method: str, default_k: Union[int, float] = 0.05) -> Union[int, 
 
 
 def _resolve_k(T: int, k: Union[int, float]) -> int:
-    """
-    Converts k (int or fraction) into an integer number of frames in [1, T].
-    """
     if isinstance(k, float):
         if not (0.0 < k <= 1.0):
             raise ValueError(f"top-k fraction must be in (0,1]. Got {k}")
@@ -62,11 +56,7 @@ def aggregate_video_predictions(
     smoothing: str = "none",
     smoothing_alpha: float = 0.7,
     *,
-    # Optional: If provided, treat this class index as "Normal" and ignore it when selecting top-k frames.
     normal_class_idx: Optional[int] = None,
-    # Controls how we score frames to pick the "top" ones:
-    # - "max": max probability across all classes (your current behavior)
-    # - "crime_max": max probability across non-normal classes (requires normal_class_idx)
     topk_score: str = "max",
 ) -> VideoAggResult:
     if logits.ndim != 2:
@@ -91,11 +81,9 @@ def aggregate_video_predictions(
     for vid, idxs in by_vid.items():
         # sort frames by frame_id to keep temporal order
         idxs_sorted = sorted(idxs, key=lambda i: frame_ids[i])
-
         # Derive a single true label for the video: majority of frame labels
         true_labels = y_true[idxs_sorted]
         true_video = int(np.bincount(true_labels).argmax())
-
         # Apply optional temporal smoothing on probs
         probs_seq = probs[idxs_sorted]  # (T, C)
         if smoothing == "ema_probs":
@@ -122,10 +110,6 @@ def aggregate_video_predictions(
             pred_video = int(np.argmax(np.max(probs_seq, axis=0)))
 
         elif method.startswith("topk_mean_probs"):
-            # method can be:
-            #   "topk_mean_probs" (default fraction=5%)
-            #   "topk_mean_probs:20"
-            #   "topk_mean_probs:0.05"
             k_raw = _parse_topk(method, default_k=0.05)
             T = probs_seq.shape[0]
             k = _resolve_k(T, k_raw)
