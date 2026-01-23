@@ -50,8 +50,8 @@ def main():
             cfg.monitor_metric = "video_macro_f1"
 
         elif args.mode == "final":
-            cfg.data.max_per_class_train = None
-            cfg.data.max_per_class_test = None
+            cfg.data.max_per_class_train = 7000
+            cfg.data.max_per_class_test = 1500
             cfg.data.weighted_sampling = False
             cfg.epochs = 25
             cfg.model_name = "mobilenetv2"
